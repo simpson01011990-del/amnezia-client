@@ -504,11 +504,7 @@ std::vector<std::byte> WindowsSplitTunnel::generateIPConfiguration(
     return {};
   };
   if (vpnOnlyApps) {
-    // The driver moves the sockets of the configured apps from the "tunnel"
-    // address to the "internet" address and blocks them on the "tunnel"
-    // address. Swapping both addresses therefore gives us the inverse mode:
-    // the configured apps are bound to the VPN adapter and are not able to
-    // use the physical one, all other apps are left alone.
+    // Swapped on purpose: the driver then moves the listed apps onto the VPN.
     std::swap(config->TunnelIpv4, config->InternetIpv4);
     std::swap(config->TunnelIpv6, config->InternetIpv6);
   }

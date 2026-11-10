@@ -10,6 +10,7 @@
 #include "ipc.h"
 
 #include <QCryptographicHash>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QTimer>
 #include <QJsonObject>
@@ -273,8 +274,14 @@ ErrorCode XrayProtocol::setupRouting()
 #else
                 static const int vpnAdapterIndex = 0;
 #endif
+#ifdef Q_OS_WIN
+                const bool vpnOnlyApps = m_rawConfig.value(configKey::appSplitTunnelType).toInt() == amnezia::AppsRouteMode::VpnOnlyForwardApps
+                        && !m_rawConfig.value(configKey::splitTunnelApps).toArray().isEmpty();
+#else
+                const bool vpnOnlyApps = false;
+#endif
                 const bool killSwitchEnabled = QVariant(m_rawConfig.value(configKey::killSwitchOption).toString()).toBool();
-                if (killSwitchEnabled) {
+                if (killSwitchEnabled && !vpnOnlyApps) {
                     if (vpnAdapterIndex != -1) {
                         QJsonObject config = m_rawConfig;
                         config.insert("vpnServer", m_remoteAddress);
@@ -288,7 +295,7 @@ ErrorCode XrayProtocol::setupRouting()
                         qWarning() << "Failed to get vpnAdapterIndex. Killswitch disabled";
                 }
 
-                if (m_routeMode == amnezia::RouteMode::VpnAllSites) {
+                if (m_routeMode == amnezia::RouteMode::VpnAllSites && !vpnOnlyApps) {
                     static const QStringList subnets = { "1.0.0.0/8",  "2.0.0.0/7",  "4.0.0.0/6",  "8.0.0.0/5",
                                                          "16.0.0.0/4", "32.0.0.0/3", "64.0.0.0/2", "128.0.0.0/1" };
 
@@ -299,10 +306,12 @@ ErrorCode XrayProtocol::setupRouting()
                     }
                 }
 
-                auto StopRoutingIpv6 = iface->StopRoutingIpv6();
-                if (!StopRoutingIpv6.waitForFinished() || !StopRoutingIpv6.returnValue()) {
-                    qCritical() << "Failed to disable IPv6 routing";
-                    return ErrorCode::InternalError;
+                if (!vpnOnlyApps) {
+                    auto StopRoutingIpv6 = iface->StopRoutingIpv6();
+                    if (!StopRoutingIpv6.waitForFinished() || !StopRoutingIpv6.returnValue()) {
+                        qCritical() << "Failed to disable IPv6 routing";
+                        return ErrorCode::InternalError;
+                    }
                 }
 
 #ifdef Q_OS_WIN

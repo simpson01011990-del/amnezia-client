@@ -514,14 +514,14 @@ void VpnConnection::appendSplitTunnelingConfig()
 #if defined(Q_OS_WIN) || defined(Q_OS_LINUX) || (defined(Q_OS_MACOS) && !defined(MACOS_NE))
         if (appsRouteMode == amnezia::AppsRouteMode::VpnOnlyForwardApps) {
 #ifdef Q_OS_WIN
-            // "Only the listed apps use the VPN" is implemented for WireGuard-based protocols only.
             const bool isSupported = protocolName == ProtocolUtils::protoToString(Proto::Awg)
-                    || protocolName == ProtocolUtils::protoToString(Proto::WireGuard);
+                    || protocolName == ProtocolUtils::protoToString(Proto::WireGuard)
+                    || protocolName == ProtocolUtils::protoToString(Proto::Xray)
+                    || protocolName == ProtocolUtils::protoToString(Proto::SSXray);
 #else
             const bool isSupported = false;
 #endif
             if (!isSupported) {
-                // Never pass this list on: the service would treat it as a list of apps to exclude from the VPN.
                 qWarning() << "App split tunneling mode 'only the listed apps via VPN' is not supported for protocol"
                            << protocolName << "- app split tunneling is disabled for this connection";
                 appsRouteMode = amnezia::AppsRouteMode::VpnAllApps;

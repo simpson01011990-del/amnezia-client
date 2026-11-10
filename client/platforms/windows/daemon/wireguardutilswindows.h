@@ -31,6 +31,7 @@ class WireguardUtilsWindows final : public WireguardUtils {
     return WireguardUtilsWindows::s_interfaceName();
   }
   static const QString s_interfaceName() { return "AmneziaVPN"; }
+  static constexpr unsigned long VPN_ONLY_APPS_DEFAULT_ROUTE_METRIC = 9000;
   bool addInterface(const InterfaceConfig& config) override;
   bool deleteInterface() override;
 
@@ -54,8 +55,6 @@ class WireguardUtilsWindows final : public WireguardUtils {
   void buildMibForwardRow(const IPAddress& prefix, void* row);
 
   quint64 m_luid = 0;
-  // Inverse app split tunneling: only the listed apps use the tunnel, so the
-  // tunnel must not become the default route of the system.
   bool m_vpnOnlyApps = false;
   void preferInterfaceForDns();
   WindowsTunnelService m_tunnel;

@@ -10,6 +10,7 @@
 #include "../client/core/protocols/protocolUtils.h"
 #include "../client/core/utils/constants/configKeys.h"
 #include "../client/core/utils/constants/protocolConstants.h"
+#include "../client/core/utils/routeModes.h"
 #include "qjsonarray.h"
 #include "version.h"
 
@@ -286,8 +287,13 @@ bool KillSwitch::enablePeerTraffic(const QJsonObject &configStr) {
         config.m_allowedDnsServers.append(dns.toString());
     }
 
+    config.m_vpnOnlyApps = configStr.value(amnezia::configKey::appSplitTunnelType).toInt() == amnezia::AppsRouteMode::VpnOnlyForwardApps
+            && !config.m_vpnDisabledApps.isEmpty();
+
     // killSwitch toggle
-    if (QVariant(configStr.value(amnezia::configKey::killSwitchOption).toString()).toBool()) {
+    if (config.m_vpnOnlyApps) {
+        WindowsFirewall::create(this)->allowAllTraffic();
+    } else if (QVariant(configStr.value(amnezia::configKey::killSwitchOption).toString()).toBool()) {
         WindowsFirewall::create(this)->enablePeerTraffic(config);
     }
 

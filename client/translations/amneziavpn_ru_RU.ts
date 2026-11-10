@@ -4092,8 +4092,8 @@ Create one from the current settings.</source>
     </message>
     <message>
         <location filename="../ui/qml/Pages2/PageSettingsAppSplitTunneling.qml" line="153"/>
-        <source>&quot;Only the apps from the list should have access via VPN&quot; mode works with AmneziaWG and WireGuard connections only. In this mode the kill switch is not applied, and DNS requests of all apps go through the VPN</source>
-        <translation>Режим «Только приложения из списка должны работать через VPN» работает только с подключениями AmneziaWG и WireGuard. В этом режиме Kill Switch не применяется, а DNS-запросы всех приложений идут через VPN</translation>
+        <source>&quot;Only the apps from the list should have access via VPN&quot; mode works with AmneziaWG, WireGuard and XRay connections only. In this mode the kill switch is not applied, and DNS requests of all apps go through the VPN</source>
+        <translation>Режим «Только приложения из списка должны работать через VPN» работает только с подключениями AmneziaWG, WireGuard и XRay. В этом режиме Kill Switch не применяется, а DNS-запросы всех приложений идут через VPN</translation>
     </message>
     <message>
         <location filename="../ui/qml/Pages2/PageSettingsAppSplitTunneling.qml" line="174"/>

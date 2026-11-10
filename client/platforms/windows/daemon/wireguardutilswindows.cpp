@@ -20,12 +20,6 @@
 
 namespace {
 Logger logger("WireguardUtilsWindows");
-
-// Metric of the tunnel's default route in the "only the listed apps use the
-// VPN" mode. It has to lose against the default route of any physical
-// adapter, the route is only meant for sockets which the split tunnel driver
-// has bound to the tunnel address.
-constexpr ULONG VPN_ONLY_APPS_DEFAULT_ROUTE_METRIC = 9000;
 };  // namespace
 
 std::unique_ptr<WireguardUtilsWindows> WireguardUtilsWindows::create(
@@ -135,10 +129,6 @@ bool WireguardUtilsWindows::addInterface(const InterfaceConfig& config) {
   m_routeMonitor = new WindowsRouteMonitor(luid.Value, this);
 
   if (m_vpnOnlyApps) {
-    // The kill switch blocks everything outside of the tunnel, which is the
-    // opposite of what the "only the listed apps use the VPN" mode is for.
-    // Drop the rules of the strict kill switch as well, they are restored
-    // by disableKillSwitch() when the interface goes down.
     preferInterfaceForDns();
     m_firewall->allowAllTraffic();
   } else if (config.m_killSwitchEnabled) {
@@ -277,9 +267,6 @@ bool WireguardUtilsWindows::updateRoutePrefix(const IPAddress& prefix) {
 
   if (vpnOnlyAppsDefaultRoute &&
       prefix.address().protocol() == QAbstractSocket::IPv6Protocol) {
-    // The tunnel has no IPv6 connectivity. Without an IPv6 route the listed
-    // apps fail over to IPv4 right away, and the other apps keep whatever
-    // IPv6 connectivity the physical adapter provides.
     logger.debug() << "Skipping IPv6 default route: only listed apps use VPN";
     return true;
   }
@@ -295,9 +282,6 @@ bool WireguardUtilsWindows::updateRoutePrefix(const IPAddress& prefix) {
   MIB_IPFORWARD_ROW2 entry;
   buildMibForwardRow(prefix, &entry);
   if (vpnOnlyAppsDefaultRoute) {
-    // Keep the default route of the physical adapter as the preferred one.
-    // Only sockets bound to the tunnel address (which is what the split
-    // tunnel driver does for the listed apps) will use this route.
     entry.Metric = VPN_ONLY_APPS_DEFAULT_ROUTE_METRIC;
     logger.debug() << "Installing low priority default route:"
                    << "only listed apps use VPN";
@@ -323,10 +307,6 @@ bool WireguardUtilsWindows::updateRoutePrefix(const IPAddress& prefix) {
   return result == NO_ERROR;
 }
 
-// Windows asks the DNS servers of the adapter with the lowest interface metric
-// first. In the "only the listed apps use the VPN" mode the tunnel is not the
-// default route, so make sure its DNS servers still win: otherwise the listed
-// apps would resolve names through the DNS of the physical adapter.
 void WireguardUtilsWindows::preferInterfaceForDns() {
   for (ADDRESS_FAMILY family : {AF_INET, AF_INET6}) {
     MIB_IPINTERFACE_ROW row;

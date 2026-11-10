@@ -5,6 +5,7 @@
 #include "windowsdaemon.h"
 
 #include <Windows.h>
+#include <iphlpapi.h>
 #include <qassert.h>
 
 #include <QCoreApplication>
@@ -28,6 +29,26 @@
 
 namespace {
 Logger logger("WindowsDaemon");
+
+bool addVpnOnlyAppsDefaultRoute(int vpnAdapterIndex) {
+  MIB_IPFORWARD_ROW2 entry;
+  InitializeIpForwardEntry(&entry);
+  entry.InterfaceIndex = vpnAdapterIndex;
+  entry.DestinationPrefix.Prefix.Ipv4.sin_family = AF_INET;
+  entry.DestinationPrefix.Prefix.Ipv4.sin_addr.s_addr = 0;
+  entry.DestinationPrefix.PrefixLength = 0;
+  entry.NextHop.Ipv4.sin_family = AF_INET;
+  entry.NextHop.Ipv4.sin_addr.s_addr = 0;
+  entry.Metric = WireguardUtilsWindows::VPN_ONLY_APPS_DEFAULT_ROUTE_METRIC;
+  entry.Protocol = MIB_IPPROTO_NETMGMT;
+
+  DWORD result = CreateIpForwardEntry2(&entry);
+  if (result != NO_ERROR && result != ERROR_OBJECT_ALREADY_EXISTS) {
+    logger.error() << "Failed to create low priority default route:" << result;
+    return false;
+  }
+  return true;
+}
 }
 
 WindowsDaemon::WindowsDaemon() : Daemon(nullptr) {
@@ -71,7 +92,11 @@ void WindowsDaemon::activateSplitTunnel(const InterfaceConfig& config, int vpnAd
     }
 
   if (config.m_vpnDisabledApps.length() > 0) {
-      if (!m_splitTunnelManager->start(m_inetAdapterIndex, vpnAdapterIndex)) {
+      if (config.m_vpnOnlyApps && !addVpnOnlyAppsDefaultRoute(vpnAdapterIndex)) {
+          emit backendFailure(DaemonError::ERROR_SPLIT_TUNNEL_START_FAILURE);
+          return;
+      }
+      if (!m_splitTunnelManager->start(m_inetAdapterIndex, vpnAdapterIndex, config.m_vpnOnlyApps)) {
           logger.error() << "Failed to start split tunnel";
           emit backendFailure(DaemonError::ERROR_SPLIT_TUNNEL_START_FAILURE);
           return;

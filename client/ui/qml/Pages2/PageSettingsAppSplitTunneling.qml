@@ -150,7 +150,7 @@ PageType {
                 Layout.rightMargin: 16
                 Layout.bottomMargin: 24
 
-                text: qsTr("\"Only the apps from the list should have access via VPN\" mode works with AmneziaWG and WireGuard connections only. In this mode the kill switch is not applied, and DNS requests of all apps go through the VPN")
+                text: qsTr("\"Only the apps from the list should have access via VPN\" mode works with AmneziaWG, WireGuard and XRay connections only. In this mode the kill switch is not applied, and DNS requests of all apps go through the VPN")
 
                 visible: (Qt.platform.os === "windows") && root.pageEnabled && root.routeModeIndex === 0
             }
