@@ -20,6 +20,12 @@
 
 namespace {
 Logger logger("WireguardUtilsWindows");
+
+// Metric of the tunnel's default route in the "only the listed apps use the
+// VPN" mode. It has to lose against the default route of any physical
+// adapter, the route is only meant for sockets which the split tunnel driver
+// has bound to the tunnel address.
+constexpr ULONG VPN_ONLY_APPS_DEFAULT_ROUTE_METRIC = 9000;
 };  // namespace
 
 std::unique_ptr<WireguardUtilsWindows> WireguardUtilsWindows::create(
@@ -89,6 +95,8 @@ QList<WireguardUtils::PeerStatus> WireguardUtilsWindows::getPeerStatus() {
 }
 
 bool WireguardUtilsWindows::addInterface(const InterfaceConfig& config) {
+  m_vpnOnlyApps = config.m_vpnOnlyApps;
+
   QStringList addresses;
   for (const IPAddress& ip : config.m_allowedIPAddressRanges) {
     addresses.append(ip.toString());
@@ -126,7 +134,14 @@ bool WireguardUtilsWindows::addInterface(const InterfaceConfig& config) {
   m_luid = luid.Value;
   m_routeMonitor = new WindowsRouteMonitor(luid.Value, this);
 
-  if (config.m_killSwitchEnabled) {
+  if (m_vpnOnlyApps) {
+    // The kill switch blocks everything outside of the tunnel, which is the
+    // opposite of what the "only the listed apps use the VPN" mode is for.
+    // Drop the rules of the strict kill switch as well, they are restored
+    // by disableKillSwitch() when the interface goes down.
+    preferInterfaceForDns();
+    m_firewall->allowAllTraffic();
+  } else if (config.m_killSwitchEnabled) {
     // Enable the windows firewall
     NET_IFINDEX ifindex;
     ConvertInterfaceLuidToIndex(&luid, &ifindex);
@@ -154,7 +169,9 @@ bool WireguardUtilsWindows::updatePeer(const InterfaceConfig& config) {
   QByteArray pskKey =
       QByteArray::fromBase64(qPrintable(config.m_serverPskKey));
 
-  if (config.m_killSwitchEnabled) {
+  m_vpnOnlyApps = config.m_vpnOnlyApps;
+
+  if (config.m_killSwitchEnabled && !m_vpnOnlyApps) {
     // Enable the windows firewall for this peer.
     m_firewall->enablePeerTraffic(config);
   }
@@ -255,7 +272,20 @@ void WireguardUtilsWindows::buildMibForwardRow(const IPAddress& prefix,
 }
 
 bool WireguardUtilsWindows::updateRoutePrefix(const IPAddress& prefix) {
-  if (m_routeMonitor && (prefix.prefixLength() == 0)) {
+  const bool vpnOnlyAppsDefaultRoute =
+      m_vpnOnlyApps && (prefix.prefixLength() == 0);
+
+  if (vpnOnlyAppsDefaultRoute &&
+      prefix.address().protocol() == QAbstractSocket::IPv6Protocol) {
+    // The tunnel has no IPv6 connectivity. Without an IPv6 route the listed
+    // apps fail over to IPv4 right away, and the other apps keep whatever
+    // IPv6 connectivity the physical adapter provides.
+    logger.debug() << "Skipping IPv6 default route: only listed apps use VPN";
+    return true;
+  }
+
+  if (m_routeMonitor && (prefix.prefixLength() == 0) &&
+      !vpnOnlyAppsDefaultRoute) {
     // If we are setting up a default route, instruct the route monitor to
     // capture traffic to all non-excluded destinations
     m_routeMonitor->setDetaultRouteCapture(true);
@@ -264,6 +294,14 @@ bool WireguardUtilsWindows::updateRoutePrefix(const IPAddress& prefix) {
   
   MIB_IPFORWARD_ROW2 entry;
   buildMibForwardRow(prefix, &entry);
+  if (vpnOnlyAppsDefaultRoute) {
+    // Keep the default route of the physical adapter as the preferred one.
+    // Only sockets bound to the tunnel address (which is what the split
+    // tunnel driver does for the listed apps) will use this route.
+    entry.Metric = VPN_ONLY_APPS_DEFAULT_ROUTE_METRIC;
+    logger.debug() << "Installing low priority default route:"
+                   << "only listed apps use VPN";
+  }
 
   // Install the route
   DWORD result = CreateIpForwardEntry2(&entry);
@@ -283,6 +321,36 @@ bool WireguardUtilsWindows::updateRoutePrefix(const IPAddress& prefix) {
                    << "result:" << result;
   }
   return result == NO_ERROR;
+}
+
+// Windows asks the DNS servers of the adapter with the lowest interface metric
+// first. In the "only the listed apps use the VPN" mode the tunnel is not the
+// default route, so make sure its DNS servers still win: otherwise the listed
+// apps would resolve names through the DNS of the physical adapter.
+void WireguardUtilsWindows::preferInterfaceForDns() {
+  for (ADDRESS_FAMILY family : {AF_INET, AF_INET6}) {
+    MIB_IPINTERFACE_ROW row;
+    InitializeIpInterfaceEntry(&row);
+    row.Family = family;
+    row.InterfaceLuid.Value = m_luid;
+    DWORD result = GetIpInterfaceEntry(&row);
+    if (result != NO_ERROR) {
+      if (family == AF_INET) {
+        logger.warning() << "Failed to read interface settings:" << result;
+      }
+      continue;
+    }
+    row.UseAutomaticMetric = FALSE;
+    row.Metric = 1;
+    if (family == AF_INET) {
+      // Required by SetIpInterfaceEntry() for IPv4 interfaces.
+      row.SitePrefixLength = 0;
+    }
+    result = SetIpInterfaceEntry(&row);
+    if (result != NO_ERROR) {
+      logger.warning() << "Failed to set interface metric:" << result;
+    }
+  }
 }
 
 bool WireguardUtilsWindows::deleteRoutePrefix(const IPAddress& prefix) {

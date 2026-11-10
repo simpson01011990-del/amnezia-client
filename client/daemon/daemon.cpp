@@ -390,6 +390,10 @@ bool Daemon::parseConfig(const QJsonObject& obj, InterfaceConfig& config) {
     return false;
   }
 
+  // Inverse app split tunneling ("only the listed apps use the VPN").
+  config.m_vpnOnlyApps = obj.value("vpnOnlyApps").toBool(false) &&
+                         !config.m_vpnDisabledApps.isEmpty();
+
   config.m_killSwitchEnabled = QVariant(obj.value("killSwitchOption").toString()).toBool();
 
   if (const auto jc = obj.value("Jc"); !jc.isUndefined()) {

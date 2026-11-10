@@ -113,7 +113,7 @@ PageType {
                 Layout.leftMargin: 16
                 Layout.rightMargin: 16
 
-                enabled: (Qt.platform.os === "android") && root.pageEnabled
+                enabled: (Qt.platform.os === "android" || Qt.platform.os === "windows") && root.pageEnabled
 
                 model: root.routeModes.map(function(mode) { return mode.segmentName })
                 currentIndex: root.routeModeIndex
@@ -150,9 +150,9 @@ PageType {
                 Layout.rightMargin: 16
                 Layout.bottomMargin: 24
 
-                text: qsTr("Only \"Apps from the list should not have access via VPN\" mode is available on Windows")
+                text: qsTr("\"Only the apps from the list should have access via VPN\" mode works with AmneziaWG and WireGuard connections only. In this mode the kill switch is not applied, and DNS requests of all apps go through the VPN")
 
-                visible: (Qt.platform.os === "windows") && root.pageEnabled
+                visible: (Qt.platform.os === "windows") && root.pageEnabled && root.routeModeIndex === 0
             }
         }
 

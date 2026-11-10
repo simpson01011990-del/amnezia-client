@@ -28,6 +28,7 @@
 #include "core/utils/protocolEnum.h"
 #include "core/protocols/protocolUtils.h"
 #include "core/utils/constants/configKeys.h"
+#include "core/utils/routeModes.h"
 #include "core/utils/constants/protocolConstants.h"
 
 // How many times do we try to reconnect.
@@ -134,6 +135,16 @@ void LocalSocketController::activate(const QJsonObject &rawConfig) {
 
   QJsonObject wgConfig = rawConfig.value(protocolName + "_config_data").toObject();
 
+  // Inverse app split tunneling: only the listed apps go through the VPN,
+  // everything else keeps using the physical adapter. Windows only.
+#ifdef MZ_WINDOWS
+  const bool vpnOnlyApps =
+      appSplitTunnelType == amnezia::AppsRouteMode::VpnOnlyForwardApps &&
+      !splitTunnelApps.isEmpty();
+#else
+  const bool vpnOnlyApps = false;
+#endif
+
   QJsonObject json;
   json.insert("type", "activate");
   //  json.insert("hopindex", QJsonValue((double)hop.m_hopindex));
@@ -231,6 +242,41 @@ void LocalSocketController::activate(const QJsonObject &rawConfig) {
               }
           }
       }
+
+      if (vpnOnlyApps) {
+          // The listed apps are moved onto the VPN adapter by the split
+          // tunnel driver, so the tunnel has to accept any destination.
+          // The daemon installs this default route with a high metric, so
+          // that all other apps keep using the physical adapter.
+          QJsonObject range_ipv4;
+          range_ipv4.insert("address", "0.0.0.0");
+          range_ipv4.insert("range", 0);
+          range_ipv4.insert("isIpv6", false);
+          if (!jsAllowedIPAddesses.contains(range_ipv4)) {
+              jsAllowedIPAddesses.append(range_ipv4);
+          }
+
+          // Name resolution is done by the system DNS client and not by the
+          // listed apps themselves, so always route the VPN DNS servers
+          // through the tunnel.
+          const QStringList dnsServers = {
+              rawConfig.value(amnezia::configKey::dns1).toString(),
+              rawConfig.value(amnezia::configKey::dns2).toString()
+          };
+          for (const QString &dns : dnsServers) {
+              QHostAddress dnsAddress(dns);
+              if (dnsAddress.protocol() != QAbstractSocket::IPv4Protocol) {
+                  continue;
+              }
+              QJsonObject range;
+              range.insert("address", dnsAddress.toString());
+              range.insert("range", 32);
+              range.insert("isIpv6", false);
+              if (!jsAllowedIPAddesses.contains(range)) {
+                  jsAllowedIPAddesses.append(range);
+              }
+          }
+      }
   }
 
   json.insert("allowedIPAddressRanges", jsAllowedIPAddesses);
@@ -247,6 +293,7 @@ void LocalSocketController::activate(const QJsonObject &rawConfig) {
   json.insert("excludedAddresses", jsExcludedAddresses);
 
   json.insert("vpnDisabledApps", splitTunnelApps);
+  json.insert("vpnOnlyApps", vpnOnlyApps);
 
   json.insert("allowedDnsServers", allowedDns);
 

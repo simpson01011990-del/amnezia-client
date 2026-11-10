@@ -108,7 +108,8 @@ bool WindowsDaemon::run(Op op, const InterfaceConfig& config) {
     return true;
   }
   if (config.m_vpnDisabledApps.length() > 0) {
-    if (!m_splitTunnelManager->start(m_inetAdapterIndex)) {
+    if (!m_splitTunnelManager->start(m_inetAdapterIndex, 0,
+                                     config.m_vpnOnlyApps)) {
       logger.error() << "Split tunnel start failed";
       emit backendFailure(DaemonError::ERROR_SPLIT_TUNNEL_START_FAILURE);
       return false;

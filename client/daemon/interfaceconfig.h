@@ -40,6 +40,10 @@ class InterfaceConfig {
   QList<IPAddress> m_allowedIPAddressRanges;
   QStringList m_excludedAddresses;
   QStringList m_vpnDisabledApps;
+  // Inverse app split tunneling: when true, m_vpnDisabledApps holds the list
+  // of apps that must be the ONLY ones using the VPN; everything else goes
+  // directly through the physical adapter.
+  bool m_vpnOnlyApps = false;
   QStringList m_allowedDnsServers;
   bool m_killSwitchEnabled;
 #if defined(MZ_ANDROID) || defined(MZ_IOS)

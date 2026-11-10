@@ -7,6 +7,7 @@
 #include <qassert.h>
 
 #include <memory>
+#include <utility>
 
 #include "../windowscommons.h"
 #include "../windowsservicemanager.h"
@@ -319,10 +320,13 @@ bool WindowsSplitTunnel::excludeApps(const QStringList& appPaths) {
   return true;
 }
 
-bool WindowsSplitTunnel::start(int inetAdapterIndex, int vpnAdapterIndex) {
+bool WindowsSplitTunnel::start(int inetAdapterIndex, int vpnAdapterIndex,
+                               bool vpnOnlyApps) {
   // To Start we need to send 2 things:
   // Network info (what is vpn what is network)
-  logger.debug() << "Starting SplitTunnel";
+  logger.debug() << "Starting SplitTunnel."
+                 << (vpnOnlyApps ? "Mode: only listed apps use VPN"
+                                 : "Mode: listed apps bypass VPN");
   DWORD bytesReturned;
 
   if (getState() == STATE_STARTED) {
@@ -361,7 +365,8 @@ bool WindowsSplitTunnel::start(int inetAdapterIndex, int vpnAdapterIndex) {
   }
   logger.debug() << "Driver is  ready || new State:" << stateString();
 
-  auto config = generateIPConfiguration(inetAdapterIndex, vpnAdapterIndex);
+  auto config =
+      generateIPConfiguration(inetAdapterIndex, vpnAdapterIndex, vpnOnlyApps);
   if (config.empty()) {
     logger.error() << "Network configuration blob is empty. Internet adapter:"
                    << inetAdapterIndex << "VPN adapter:" << vpnAdapterIndex;
@@ -480,7 +485,7 @@ std::vector<uint8_t> WindowsSplitTunnel::generateAppConfiguration(
 }
 
 std::vector<std::byte> WindowsSplitTunnel::generateIPConfiguration(
-    int inetAdapterIndex, int vpnAdapterIndex) {
+    int inetAdapterIndex, int vpnAdapterIndex, bool vpnOnlyApps) {
   std::vector<std::byte> out(sizeof(IP_ADDRESSES_CONFIG));
 
   auto config = reinterpret_cast<IP_ADDRESSES_CONFIG*>(&out[0]);
@@ -498,6 +503,15 @@ std::vector<std::byte> WindowsSplitTunnel::generateIPConfiguration(
                   &config->InternetIpv6)) {
     return {};
   };
+  if (vpnOnlyApps) {
+    // The driver moves the sockets of the configured apps from the "tunnel"
+    // address to the "internet" address and blocks them on the "tunnel"
+    // address. Swapping both addresses therefore gives us the inverse mode:
+    // the configured apps are bound to the VPN adapter and are not able to
+    // use the physical one, all other apps are left alone.
+    std::swap(config->TunnelIpv4, config->InternetIpv4);
+    std::swap(config->TunnelIpv6, config->InternetIpv6);
+  }
   return out;
 }
 bool WindowsSplitTunnel::getAddress(int adapterIndex, IN_ADDR* out_ipv4,
