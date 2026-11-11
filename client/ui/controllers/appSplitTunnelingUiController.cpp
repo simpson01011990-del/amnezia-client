@@ -5,6 +5,9 @@
 #include "core/utils/errorCodes.h"
 #include "core/utils/routeModes.h"
 #include "core/utils/commonStructs.h"
+#ifdef Q_OS_WIN
+#include "core/utils/windowsPackagedApps.h"
+#endif
 
 AppSplitTunnelingUiController::AppSplitTunnelingUiController(AppSplitTunnelingController* appSplitTunnelingController,
                                                               AppSplitTunnelingModel* appSplitTunnelingModel,
@@ -24,6 +27,24 @@ void AppSplitTunnelingUiController::addApp(const QString &appPath)
         appInfo.appName = fileInfo.fileName();
     }
 
+    if (m_appSplitTunnelingController->addApp(appInfo)) {
+        emit finished(tr("Application added: %1").arg(appInfo.appName));
+    } else {
+        emit errorOccurred(tr("The application has already been added"));
+    }
+}
+
+void AppSplitTunnelingUiController::addPackagedApp(const QString &appIdentifier)
+{
+    const QString identifier = appIdentifier.trimmed();
+#ifdef Q_OS_WIN
+    if (WindowsPackagedApps::executablePaths(identifier).isEmpty()) {
+        emit errorOccurred(tr("No installed application found for the identifier: %1").arg(identifier));
+        return;
+    }
+#endif
+
+    amnezia::InstalledAppInfo appInfo { identifier, identifier, "" };
     if (m_appSplitTunnelingController->addApp(appInfo)) {
         emit finished(tr("Application added: %1").arg(appInfo.appName));
     } else {

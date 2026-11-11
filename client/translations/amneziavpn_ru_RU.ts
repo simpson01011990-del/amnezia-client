@@ -92,6 +92,11 @@
         <translation>Приложение добавлено: %1</translation>
     </message>
     <message>
+        <location filename="../ui/controllers/appSplitTunnelingUiController.cpp" line="42"/>
+        <source>No installed application found for the identifier: %1</source>
+        <translation>Не найдено установленное приложение с идентификатором: %1</translation>
+    </message>
+    <message>
         <location filename="../ui/controllers/appSplitTunnelingUiController.cpp" line="30"/>
         <source>The application has already been added</source>
         <translation>Приложение уже было добавлено</translation>
@@ -4114,6 +4119,11 @@ Create one from the current settings.</source>
         <location filename="../ui/qml/Pages2/PageSettingsAppSplitTunneling.qml" line="214"/>
         <source>application name</source>
         <translation>название приложения</translation>
+    </message>
+    <message>
+        <location filename="../ui/qml/Pages2/PageSettingsAppSplitTunneling.qml" line="214"/>
+        <source>application ID, or leave empty to choose a file</source>
+        <translation>идентификатор приложения или оставьте пустым для выбора файла</translation>
     </message>
     <message>
         <location filename="../ui/qml/Pages2/PageSettingsAppSplitTunneling.qml" line="225"/>

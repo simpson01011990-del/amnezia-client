@@ -24,6 +24,7 @@ public:
 
 public slots:
     void addApp(const QString &appPath);
+    void addPackagedApp(const QString &appIdentifier);
     void addApps(QVector<QPair<QString, QString>> apps);
     void removeApp(const int index);
     void toggleSplitTunneling(bool enabled);

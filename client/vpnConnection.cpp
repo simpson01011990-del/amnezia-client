@@ -32,6 +32,9 @@
 
 #include "core/utils/networkUtilities.h"
 #include "core/utils/serverConfigUtils.h"
+#ifdef Q_OS_WIN
+#include "core/utils/windowsPackagedApps.h"
+#endif
 #include "vpnConnection.h"
 
 using namespace ProtocolUtils;
@@ -504,6 +507,18 @@ void VpnConnection::appendSplitTunnelingConfig()
 
         auto apps = m_appSettingsRepository->vpnApps(appsRouteMode);
         for (const auto &app : apps) {
+#ifdef Q_OS_WIN
+            if (app.appPath.isEmpty()) {
+                const QStringList executables = WindowsPackagedApps::executablePaths(app.packageName);
+                if (executables.isEmpty()) {
+                    qWarning() << "App split tunneling: no executables found for app identifier" << app.packageName;
+                }
+                for (const QString &executable : executables) {
+                    appsJsonArray.append(executable);
+                }
+                continue;
+            }
+#endif
             appsJsonArray.append(app.appPath.isEmpty() ? app.packageName : app.appPath);
         }
 

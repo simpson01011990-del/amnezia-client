@@ -211,7 +211,8 @@ PageType {
 
             enabled: root.pageEnabled
 
-            textField.placeholderText: qsTr("application name")
+            textField.placeholderText: Qt.platform.os === "windows" ? qsTr("application ID, or leave empty to choose a file")
+                                                                    : qsTr("application name")
             buttonImageSource: "qrc:/images/controls/plus.svg"
             buttonJoined: true
 
@@ -221,7 +222,10 @@ PageType {
                 searchField.focus = false
                 PageController.showBusyIndicator(true)
 
-                if (Qt.platform.os === "windows") {
+                if (Qt.platform.os === "windows" && searchField.textField.text.trim() !== "") {
+                    AppSplitTunnelingController.addPackagedApp(searchField.textField.text)
+                    searchField.textField.text = ""
+                } else if (Qt.platform.os === "windows") {
                     var fileName = SystemController.getFileName(qsTr("Open executable file"),
                                                                 qsTr("Executable files (*.*)"))
                     if (fileName !== "") {
